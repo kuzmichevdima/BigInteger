@@ -16,6 +16,7 @@ class BigInteger {
         if (digits->size() == 1 && (*digits)[0] == 0)
             negative = false;
     }
+    
 
     public:
     BigInteger() {
@@ -257,8 +258,17 @@ class BigInteger {
         *digits = new_digits;
     }
 
+    void clear() {
+        digits->clear();
+    }
+
+    bool operator == (BigInteger another) {
+        return *digits == another.getDigits() && negative == another.isNegative();
+    }
+
     BigInteger operator / (BigInteger another) {
-        assert(!another.isZero());
+        if (another.isZero())
+            return UNDEF;
         if (another.isNegative())
         {
             BigInteger result = *this / another.opposite();
@@ -269,13 +279,14 @@ class BigInteger {
         vector <int> result_d;
         for (int pos = (int)digits->size() - 1; pos >= 0; pos--) {
             cur.addBackDigit((*digits)[pos]);
-            //cout << "cur: " << endl;
-            //cur.print();
             for (int val = 1; val <= 10; val++) {
                 if (cur < another * val) {
                    // cout << pos << " " << val - 1 << endl;
                     result_d.push_back(val - 1);
                     cur = cur - another * (val - 1);
+                    if (cur.isZero()) {
+                        cur.clear();
+                    }
                     break;
                 }
             }
@@ -299,14 +310,73 @@ class BigInteger {
         return result;
     }
 
+    static BigInteger UNDEF;
+
+    private:
+    static bool checkAfter(string s, int pos, bool strict) {
+       string afterS = s.substr(pos + 1, -1);
+       int minusPos = afterS.find("-");
+       if (minusPos != -1) {
+           if (strict || minusPos != 0 || !checkAfter(afterS, 0, true))
+                return false;
+       }
+       return (int)afterS.find("/") == -1 && (int)afterS.find("*") == -1 && (int)afterS.find("+") == -1;
+    }
+
+    public:
+    static BigInteger calculate(string s) {
+        for (char c : s) {
+            if (!((c >= '0' && c <= '9') || c == '*' || c == '/' || c == '-' || c == '+')) {
+                cout << "Invalid expression: bad symbols found";
+                return UNDEF;
+            }
+        }
+        int multPos = s.find("*");
+        if (multPos != -1) {
+            if (!checkAfter(s, multPos, false)) {
+                cout << "invalid expression with *" << endl; 
+                return UNDEF;
+            }
+            return BigInteger(s.substr(0, multPos)) * BigInteger(s.substr(multPos + 1, -1));
+        }
+        int divPos = s.find("/");
+        if (divPos != -1) {
+            if (!checkAfter(s, divPos, false)) {
+                cout << "invalid expression with /" << endl; 
+                return UNDEF;
+            }
+            return BigInteger(s.substr(0, divPos)) / BigInteger(s.substr(divPos + 1, -1));
+        }
+        int plusPos = s.find("+");
+        if (plusPos != -1) {
+            if (!checkAfter(s, plusPos, false)) {
+                cout << "invalid expression with +" << endl; 
+                return UNDEF;
+            }
+            return BigInteger(s.substr(0, plusPos)) + BigInteger(s.substr(plusPos + 1, -1));
+        }
+        int minusPos = s.substr(1, -1).find("-") + 1;
+        if (minusPos != 0) {
+            if (!checkAfter(s, minusPos, false)) {
+                cout << "invalid expression with -" << endl; 
+                return UNDEF;
+            }
+            return BigInteger(s.substr(0, minusPos)) - BigInteger(s.substr(minusPos + 1, -1));
+        }
+        return BigInteger(s);
+    }
+
     ~BigInteger() {
         delete digits;
     }
 };
 
+BigInteger BigInteger::UNDEF = BigInteger({-1}, false);
+
+
 const int TESTS_CNT = 10000;
 
-void testPlusMinusOperators() {
+void test() {
     vector <pair<int, int >> tests;
     tests.push_back(make_pair(1000, 3));
     for (int it = 0; it < TESTS_CNT; it++) {
@@ -327,23 +397,33 @@ void testPlusMinusOperators() {
         BigInteger b = BigInteger(b1);
         cout << a1 << " " << b1 << endl;
         assert((a + b).toString() == to_string(a1 + b1));
+        assert(BigInteger::calculate(a.toString() + "+" + b.toString()) == a + b);
         assert((a - b).toString() == to_string(a1 - b1));
+        assert(BigInteger::calculate(a.toString() + "-" + b.toString()) == a - b);
         assert((a * b1).toString() == to_string(a1 * b1));
+        assert(BigInteger::calculate(a.toString() + "*" + b.toString()) == a * b);
         assert((b * a1).toString() == to_string(a1 * b1));
         assert((a * b).toString() == to_string(a1 * b1));
         assert((b * a).toString() == to_string(a1 * b1));
         assert(b1 == 0 || (a / b).toString() == to_string(a1 / b1));
+        assert(b1 == 0 || BigInteger::calculate(a.toString() + "/" + b.toString()) == a / b);
         assert(a1 == 0 || (b / a).toString() == to_string(b1 / a1));
+        assert(a1 == 0 || BigInteger::calculate(b.toString() + "/" + a.toString()) == b / a);
     }
-    cout << "+ and - tests OK." << tests.size() << " tests completed" << endl;
+    cout << tests.size() << " tests completed OK" << endl;
 }
 
-
-void testAll() {
-    testPlusMinusOperators();
-}
 
 int main() {
-    testAll();
+    test();
+    cout << "Enter your expressions:" << endl;
+    string s;
+    while(cin >> s) {
+        BigInteger result = BigInteger::calculate(s);
+        if (!(result == BigInteger::UNDEF)) {
+            cout << "result of calculation of " + s + " is:" << endl;
+            result.print();
+        }
+    }
 }
 
